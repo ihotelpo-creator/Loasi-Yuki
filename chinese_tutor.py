@@ -19,14 +19,36 @@ class ChineseTutorEngine:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if self.api_key and genai:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
-        else:
-            self.model = None
-            logger.warning("GEMINI_API_KEY not set or google-generativeai package missing.")
+
+    def _generate(self, prompt: str) -> str:
+        """Helper to try generating content with fallback Gemini models."""
+        if not self.api_key or not genai:
+            raise ValueError("GEMINI_API_KEY is missing or genai package is unavailable")
+
+        candidate_models = [
+            'gemini-3.8-flash',
+            'gemini-3.6-flash',
+            'gemini-flash-latest',
+            'gemini-2.5-flash-lite',
+            'gemini-pro-latest'
+        ]
+
+        last_exception = None
+        for model_name in candidate_models:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text.strip()
+            except Exception as e:
+                last_exception = e
+                logger.warning("Gemini model %s failed: %s", model_name, e)
+
+        raise RuntimeError(f"All Gemini models failed. Last error: {last_exception}")
 
     def chat_response(self, user_message: str, user_id: str = "default") -> str:
         """Processes regular chat / roleplay with the student."""
-        if not self.model:
+        if not self.api_key:
             return f"🇨🇳 [โหมดจำลอง (No API Key)] คุณพูดว่า: '{user_message}'\n\nพินอิน: [nǐ hǎo]\nแปลไทย: สวัสดีครับ! กรุณาใส่ GEMINI_API_KEY เพื่อเปิดใช้งาน AI เต็มรูปแบบ"
 
         prompt = f"""
@@ -42,15 +64,14 @@ class ChineseTutorEngine:
         ข้อความของผู้เรียน: {user_message}
         """
         try:
-            response = self.model.generate_content(prompt)
-            return response.text.strip()
+            return self._generate(prompt)
         except Exception as e:
-            logger.error(f"Gemini API error: {e}")
+            logger.error("Gemini API error: %s", e)
             return f"ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล AI: {str(e)}"
 
     def generate_flashcard(self, hsk_level: str = "HSK 1") -> Dict[str, Any]:
         """Generates a structured HSK vocabulary item in JSON format."""
-        if not self.model:
+        if not self.api_key:
             return {
                 "word_cn": "学习",
                 "pinyin": "xué xí",
@@ -73,11 +94,11 @@ class ChineseTutorEngine:
         }}
         """
         try:
-            response = self.model.generate_content(prompt)
-            clean_text = response.text.strip().replace("```json", "").replace("```", "")
+            raw_text = self._generate(prompt)
+            clean_text = raw_text.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_text)
         except Exception as e:
-            logger.error(f"Error generating flashcard: {e}")
+            logger.error("Error generating flashcard: %s", e)
             return {
                 "word_cn": "苹果",
                 "pinyin": "píng guǒ",
@@ -89,7 +110,7 @@ class ChineseTutorEngine:
 
     def check_grammar(self, sentence: str) -> Dict[str, Any]:
         """Checks and corrects a Chinese sentence written by the user."""
-        if not self.model:
+        if not self.api_key:
             return {
                 "original_text": sentence,
                 "corrected_text": sentence,
@@ -108,11 +129,11 @@ class ChineseTutorEngine:
         }}
         """
         try:
-            response = self.model.generate_content(prompt)
-            clean_text = response.text.strip().replace("```json", "").replace("```", "")
+            raw_text = self._generate(prompt)
+            clean_text = raw_text.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_text)
         except Exception as e:
-            logger.error(f"Error checking grammar: {e}")
+            logger.error("Error checking grammar: %s", e)
             return {
                 "original_text": sentence,
                 "corrected_text": sentence,
