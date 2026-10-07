@@ -66,20 +66,24 @@ class ChineseTutorEngine:
         try:
             return self._generate(prompt)
         except Exception as e:
-            logger.error("Gemini API error: %s", e)
-            return f"ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล AI: {str(e)}"
+            err_str = str(e)
+            logger.error("Gemini API error: %s", err_str)
+            if "429" in err_str or "quota" in err_str.lower():
+                return "⚠️ โควต้าการใช้งาน Gemini API ฟรีของวันนี้เต็มชั่วคราวครับ (Google Quota Limit)\n\n💡 วิธีแก้ไข: กรุณาสร้าง Gemini API Key ใหม่ฟรีที่ aistudio.google.com แล้วนำไปอัปเดตใน Render.com ครับ"
+            return f"ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล AI: {err_str[:150]}"
 
     def generate_flashcard(self, hsk_level: str = "HSK 1") -> Dict[str, Any]:
         """Generates a structured HSK vocabulary item in JSON format."""
+        default_card = {
+            "word_cn": "朋友",
+            "pinyin": "péng you",
+            "thai_meaning": "เพื่อน",
+            "example_cn": "他是我的好朋友。",
+            "example_th": "เขาเป็นเพื่อนที่ดีของฉัน",
+            "hsk_level": hsk_level
+        }
         if not self.api_key:
-            return {
-                "word_cn": "学习",
-                "pinyin": "xué xí",
-                "thai_meaning": "เรียน / เรียนรู้",
-                "example_cn": "我喜欢学习中文。",
-                "example_th": "ฉันชอบเรียนภาษาจีน",
-                "hsk_level": hsk_level
-            }
+            return default_card
 
         prompt = f"""
         สุ่มสร้างคำศัพท์ภาษาจีนระดับ {hsk_level} มา 1 คำ 
@@ -99,14 +103,7 @@ class ChineseTutorEngine:
             return json.loads(clean_text)
         except Exception as e:
             logger.error("Error generating flashcard: %s", e)
-            return {
-                "word_cn": "苹果",
-                "pinyin": "píng guǒ",
-                "thai_meaning": "แอปเปิ้ล",
-                "example_cn": "我吃苹果。",
-                "example_th": "ฉันกินแอปเปิ้ล",
-                "hsk_level": hsk_level
-            }
+            return default_card
 
     def check_grammar(self, sentence: str) -> Dict[str, Any]:
         """Checks and corrects a Chinese sentence written by the user."""
@@ -138,5 +135,5 @@ class ChineseTutorEngine:
                 "original_text": sentence,
                 "corrected_text": sentence,
                 "pinyin": "",
-                "explanation_th": f"ไม่สามารถตรวจไวยากรณ์ได้: {str(e)}"
+                "explanation_th": f"ไม่สามารถตรวจไวยากรณ์ได้ชั่วคราว (Quota API เต็ม) กรุณาเปลี่ยน Gemini API Key"
             }
