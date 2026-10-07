@@ -1,0 +1,14 @@
+# Python virtual environments & bytecode
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Sensitive environment variables
+.env
+
+# OS / Editor files
+.DS_Store
+.vscode/
+.idea/
